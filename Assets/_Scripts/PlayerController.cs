@@ -8,18 +8,41 @@ public class PlayerController : MonoBehaviour
     [SerializeField] private float jumpHeight = 1.5f; // Height of the jump
     [SerializeField] private float slideDuration = 0.5f; // Duration of the slide animation
     [SerializeField] private float slideHeight = 0.5f; // Duration of the slide animation
+    [SerializeField] private Animator animator; // Reference to the Animator component
+
     private int currentLane = 1; // Current lane (0 for left, 1 for middle, 2 for right)
     private bool isGrounded = true; // Flag to check if the player is grounded
-    [SerializeField] private Animator animator; // Reference to the Animator component
 
     void Start()
     {
-        // Start with the default animation
+        GameManager.onGameStart += onGameStart;
+    }
+
+    private void OnDestroy()
+    {
+        GameManager.onGameStart -= onGameStart;
+    }
+
+    void onGameStart()
+    {
         animator.Play("Run");
     }
 
     void Update()
     {
+        if (!GameManager.instance.isRunning())
+        {
+            if (GameManager.instance.isPaused)
+            {
+                animator.StartPlayback();
+            }
+            return;
+        }
+        animator.StopPlayback();
+
+        GameManager.instance.PlayerScore += (moveSpeed / 4) * Time.deltaTime;
+        GameManager.instance.PlayerTime += Time.deltaTime;
+
         // Check for input to move left or right
         if (Input.GetKeyDown(KeyCode.LeftArrow))
         {
@@ -33,14 +56,14 @@ public class PlayerController : MonoBehaviour
         }
 
         // Check for input to jump
-        if (Input.GetKeyDown(KeyCode.UpArrow) && isGrounded)
+        if (Input.GetKeyDown(KeyCode.UpArrow))
         {
             Jump();
             animator.CrossFade("Jump", 0, 0);
         }
 
         // Check for input to slide
-        if (Input.GetKeyDown(KeyCode.DownArrow) && isGrounded)
+        if (Input.GetKeyDown(KeyCode.DownArrow))
         {
             Slide();
             animator.CrossFade("Slide", 0, 0);
@@ -48,6 +71,8 @@ public class PlayerController : MonoBehaviour
 
         // Move the player forward
         transform.Translate(Vector3.forward * moveSpeed * Time.deltaTime);
+
+        moveSpeed += Time.deltaTime / 10;
     }
 
     // Method to move the player left or right between lanes

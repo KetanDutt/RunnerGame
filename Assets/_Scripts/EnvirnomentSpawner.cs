@@ -22,11 +22,16 @@ public class EnvironmentSpawner : MonoBehaviour
         InitializePool();
 
         // Ensure at least one environment is spawned initially
-        SpawnEnvironment();
+        while (spawnMarker.position.z > lastSpawnPosition)
+        {
+            SpawnEnvironment();
+        }
     }
 
     void Update()
     {
+        if (!GameManager.instance.isRunning())
+            return;
         // Check if the spawn point is outside the bounds of the last spawned object
         if (spawnMarker.position.z > lastSpawnPosition)
         {

@@ -13,6 +13,8 @@ public class Rotator : MonoBehaviour
 
     private void Update()
     {
+        if (!GameManager.instance.isRunning())
+            return;
         transform.localRotation *= Quaternion.Euler(speed * Time.deltaTime);
     }
 }

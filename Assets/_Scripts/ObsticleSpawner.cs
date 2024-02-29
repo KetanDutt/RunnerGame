@@ -15,7 +15,7 @@ public class ObstacleSpawner : MonoBehaviour
 
     private List<GameObject> obstaclePool = new List<GameObject>(); // Pool of obstacle objects
     private List<GameObject> coinPool = new List<GameObject>(); // Pool of coin objects
-    private float lastSpawnPosition; // Position of the last spawned obstacle
+    private float lastSpawnPosition = 7; // Position of the last spawned obstacle
 
     void Start()
     {
@@ -23,11 +23,16 @@ public class ObstacleSpawner : MonoBehaviour
         InitializePool();
 
         // Ensure at least one obstacle is spawned initially
-        SpawnObstacle();
+        while (spawnMarker.position.z > lastSpawnPosition)
+        {
+            SpawnObstacle();
+        }
     }
 
     void Update()
     {
+        if (!GameManager.instance.isRunning())
+            return;
         // Check if the spawn point is outside the bounds of the last spawned object
         if (spawnMarker.position.z > lastSpawnPosition)
         {
@@ -79,8 +84,6 @@ public class ObstacleSpawner : MonoBehaviour
         lastSpawnPosition += prefabWidth;
 
         // Check if a coin should be spawned in the remaining lanes
-        // if (Random.value < coinSpawnChance)
-        // {
         float temp = lastSpawnPosition;
         int count = Random.Range(4, 8);
         lastSpawnPosition -= count / 2;
@@ -93,7 +96,6 @@ public class ObstacleSpawner : MonoBehaviour
             lastSpawnPosition += 1;
         }
         lastSpawnPosition = temp;
-        // }
     }
 
     GameObject GetPooledObject(List<GameObject> pool, bool isCoin)

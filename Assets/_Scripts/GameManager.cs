@@ -1,24 +1,28 @@
 using UnityEngine;
 using TMPro;
 using System.Collections;
+using System;
 
 public class GameManager : MonoBehaviour
 {
     public static GameManager instance;
 
-    public TextMeshProUGUI countdownText;
-    public TextMeshProUGUI coinText;
-    public int countdownDuration = 3;
-    public int coinsCollected = 0;
+    private bool _gameStarted = false;
+    public bool isPaused = false;
+    public bool isOver = false;
+
+    [SerializeField] private int countdownDuration = 3;
+    private int coinsCollected = 0;
+    private float playerScore = 0;
+    private float playerTime = 0;
+
+    public static event Action onGameStart;
+
+    [SerializeField] private GameplayUI gameplayUI;
 
     private void Awake()
     {
-        if (instance == null)
-            instance = this;
-        else if (instance != this)
-            Destroy(gameObject);
-
-        DontDestroyOnLoad(gameObject);
+        instance = this;
     }
 
     private void Start()
@@ -37,14 +41,14 @@ public class GameManager : MonoBehaviour
 
         while (countdownValue > 0)
         {
-            countdownText.text = countdownValue.ToString();
-            yield return new WaitForSeconds(1f);
+            gameplayUI.countdownText.text = countdownValue.ToString();
+            yield return new WaitForSecondsRealtime(1f);
             countdownValue--;
         }
 
-        countdownText.text = "Go!";
-        yield return new WaitForSeconds(1f);
-        countdownText.gameObject.SetActive(false);
+        gameplayUI.countdownText.text = "Go!";
+        yield return new WaitForSecondsRealtime(1f);
+        gameplayUI.countdownText.gameObject.SetActive(false);
 
         // Start the game
         StartGame();
@@ -52,14 +56,44 @@ public class GameManager : MonoBehaviour
 
     private void StartGame()
     {
-        Debug.Log("Game started!");
-        // You can put your game start logic here
+        _gameStarted = true;
+        onGameStart?.Invoke();
     }
 
     public void CoinCollected()
     {
         coinsCollected++;
-        coinText.text = "Coins: " + coinsCollected.ToString();
-        // You can put additional logic here for coin collection
+        gameplayUI.coinText.text = $"Coins: {coinsCollected}";
+    }
+
+    public bool isRunning()
+    {
+        return _gameStarted && !isPaused && !isOver;
+    }
+
+    private void Update()
+    {
+        gameplayUI.scoreText.text = $"Score: {(int)playerScore}";
+        gameplayUI.timeText.text = $"Time: {(int)playerTime}";
+    }
+
+    public void GameOver()
+    {
+        isOver = true;
+        gameplayUI.GameOver(coinsCollected, playerScore, playerTime);
+    }
+
+    public int CoinsCollected => coinsCollected;
+
+    public float PlayerScore
+    {
+        get => playerScore;
+        set => playerScore = value;
+    }
+
+    public float PlayerTime
+    {
+        get => playerTime;
+        set => playerTime = value;
     }
 }
