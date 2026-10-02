@@ -1,99 +1,188 @@
-using UnityEngine;
-using TMPro;
 using System.Collections;
-using System;
+using UnityEngine;
 
-public class GameManager : MonoBehaviour
+namespace RunnerGame
 {
-    public static GameManager instance;
-
-    private bool _gameStarted = false;
-    public bool isPaused = false;
-    public bool isOver = false;
-
-    [SerializeField] private int countdownDuration = 3;
-    private int coinsCollected = 0;
-    private float playerScore = 0;
-    private float playerTime = 0;
-
-    public static event Action onGameStart;
-
-    [SerializeField] private GameplayUI gameplayUI;
-
-    private void Awake()
+    /// <summary>
+    /// Owns the run state: countdown, pause, score, coins, time, high score
+    /// and the transition into game over. One instance lives per gameplay scene.
+    /// </summary>
+    public class GameManager : MonoBehaviour
     {
-        instance = this;
-    }
+        public const string HighScoreKey = "RunnerGame.HighScore";
 
-    private void Start()
-    {
-        StartCountdown();
-    }
+        public static GameManager Instance { get; private set; }
 
-    private void StartCountdown()
-    {
-        StartCoroutine(CountdownRoutine());
-    }
+        [Header("Countdown")]
+        [SerializeField] private int countdownDuration = 3;
 
-    private IEnumerator CountdownRoutine()
-    {
-        int countdownValue = countdownDuration;
+        [Header("UI")]
+        [SerializeField] private GameplayUI gameplayUI;
 
-        while (countdownValue > 0)
+        private bool _gameStarted;
+        private bool _paused;
+        private bool _over;
+        private int _coins;
+        private float _score;
+        private float _time;
+
+        // ---- State ----
+        public bool IsRunning => _gameStarted && !_paused && !_over;
+        public bool IsStarted => _gameStarted;
+        public bool IsPaused => _paused;
+        public bool IsOver => _over;
+        public int CoinsCollected => _coins;
+        public float PlayerScore => _score;
+        public float PlayerTime => _time;
+        public int HighScore { get; private set; }
+        public bool IsNewRecord { get; private set; }
+
+        /// <summary>Null-safe convenience check for systems that poll every frame.</summary>
+        public static bool IsGameRunning()
         {
-            gameplayUI.countdownText.text = countdownValue.ToString();
-            yield return new WaitForSecondsRealtime(1f);
-            countdownValue--;
+            return Instance != null && Instance.IsRunning;
         }
 
-        gameplayUI.countdownText.text = "Go!";
-        yield return new WaitForSecondsRealtime(1f);
-        gameplayUI.countdownText.gameObject.SetActive(false);
+        private void Awake()
+        {
+            if (Instance != null && Instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
 
-        // Start the game
-        StartGame();
-    }
+            Instance = this;
+            HighScore = PlayerPrefs.GetInt(HighScoreKey, 0);
+        }
 
-    private void StartGame()
-    {
-        _gameStarted = true;
-        onGameStart?.Invoke();
-    }
+        private void OnDestroy()
+        {
+            if (Instance == this)
+            {
+                Instance = null;
+            }
+        }
 
-    public void CoinCollected()
-    {
-        coinsCollected++;
-        gameplayUI.coinText.text = $"Coins: {coinsCollected}";
-    }
+        private void Start()
+        {
+            // Make sure we never inherit a paused/slowed time scale from a
+            // previous scene (e.g. restarting while the run was paused).
+            Time.timeScale = 1f;
+            StartCoroutine(CountdownRoutine());
+        }
 
-    public bool isRunning()
-    {
-        return _gameStarted && !isPaused && !isOver;
-    }
+        private IEnumerator CountdownRoutine()
+        {
+            int value = Mathf.Max(1, countdownDuration);
 
-    private void Update()
-    {
-        gameplayUI.scoreText.text = $"Score: {(int)playerScore}";
-        gameplayUI.timeText.text = $"Time: {(int)playerTime}";
-    }
+            while (value > 0)
+            {
+                if (gameplayUI != null)
+                {
+                    gameplayUI.ShowCountdown(value.ToString());
+                }
 
-    public void GameOver()
-    {
-        isOver = true;
-        gameplayUI.GameOver(coinsCollected, playerScore, playerTime);
-    }
+                AudioDirector.Instance?.PlayCountdownBeep();
+                yield return new WaitForSecondsRealtime(1f);
+                value--;
+            }
 
-    public int CoinsCollected => coinsCollected;
+            if (gameplayUI != null)
+            {
+                gameplayUI.ShowCountdown("GO!");
+            }
 
-    public float PlayerScore
-    {
-        get => playerScore;
-        set => playerScore = value;
-    }
+            AudioDirector.Instance?.PlayGo();
+            yield return new WaitForSecondsRealtime(0.7f);
 
-    public float PlayerTime
-    {
-        get => playerTime;
-        set => playerTime = value;
+            if (gameplayUI != null)
+            {
+                gameplayUI.HideCountdown();
+            }
+
+            _gameStarted = true;
+            GameEvents.RaiseGameStarted();
+        }
+
+        private void Update()
+        {
+            if (IsRunning)
+            {
+                _time += Time.deltaTime;
+            }
+        }
+
+        // ---- Scoring ----
+
+        /// <summary>Called by the player controller once per frame with the distance travelled this frame.</summary>
+        public void AddScore(float delta)
+        {
+            if (!_gameStarted || _over)
+            {
+                return;
+            }
+
+            _score += delta;
+        }
+
+        /// <summary>Called when the player collects a coin.</summary>
+        public void CollectCoin(Vector3 coinWorldPosition)
+        {
+            if (!IsRunning)
+            {
+                return;
+            }
+
+            _coins++;
+            AudioDirector.Instance?.PlayCoin();
+            ParticleFX.Instance?.BurstCoin(coinWorldPosition);
+            GameEvents.RaiseCoinCollected(coinWorldPosition);
+        }
+
+        // ---- Pause ----
+
+        public void SetPaused(bool paused)
+        {
+            if (_over || !_gameStarted || _paused == paused)
+            {
+                return;
+            }
+
+            _paused = paused;
+            Time.timeScale = paused ? 0f : 1f;
+            AudioDirector.Instance?.DuckMusic(paused);
+            GameEvents.RaisePauseChanged(paused);
+        }
+
+        // ---- Game over ----
+
+        public void GameOver()
+        {
+            if (_over)
+            {
+                return;
+            }
+
+            _over = true;
+            Time.timeScale = 1f;
+
+            int finalScore = Mathf.FloorToInt(_score);
+            IsNewRecord = finalScore > HighScore && finalScore > 0;
+            if (IsNewRecord)
+            {
+                HighScore = finalScore;
+                PlayerPrefs.SetInt(HighScoreKey, HighScore);
+                PlayerPrefs.Save();
+            }
+
+            AudioDirector.Instance?.StopMusic();
+            AudioDirector.Instance?.PlayGameOver();
+
+            GameEvents.RaiseGameOver(finalScore);
+            if (gameplayUI != null)
+            {
+                gameplayUI.ShowGameOver(_coins, finalScore, Mathf.FloorToInt(_time), HighScore, IsNewRecord);
+            }
+        }
     }
 }
