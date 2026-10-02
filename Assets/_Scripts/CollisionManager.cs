@@ -1,27 +1,37 @@
 using UnityEngine;
 
-public class CollisionManager : MonoBehaviour
+namespace RunnerGame
 {
-    int i = 0;
-    [SerializeField] private PlayerHealth playerHealth;
-
-    private void OnTriggerEnter(Collider other)
+    /// <summary>
+    /// Sits on the player's "Body" (which carries the trigger-compatible collider)
+    /// and reacts to obstacle and coin triggers.
+    /// </summary>
+    public class CollisionManager : MonoBehaviour
     {
-        if (!GameManager.instance.isRunning())
-            return;
-        if (other.CompareTag("Obstacle"))
+        private const string TagObstacle = "Obstacle";
+        private const string TagCoin = "Coin";
+
+        [SerializeField] private PlayerHealth playerHealth;
+
+        private void OnTriggerEnter(Collider other)
         {
-            // Handle collision with obstacles
-            Debug.Log("Player collided with obstacle!  " + i);
-            i++;
-            playerHealth.Hurt();
-            // You can add any code here to handle obstacle collision, like decreasing health or triggering an animation.
-        }
-        else if (other.CompareTag("Coin"))
-        {
-            // Handle collision with coins
-            other.gameObject.SetActive(false);
-            GameManager.instance.CoinCollected();
+            if (!GameManager.IsGameRunning())
+            {
+                return;
+            }
+
+            if (other.CompareTag(TagObstacle))
+            {
+                if (playerHealth != null)
+                {
+                    playerHealth.Hurt();
+                }
+            }
+            else if (other.CompareTag(TagCoin))
+            {
+                other.gameObject.SetActive(false);
+                GameManager.Instance.CollectCoin(other.transform.position);
+            }
         }
     }
 }

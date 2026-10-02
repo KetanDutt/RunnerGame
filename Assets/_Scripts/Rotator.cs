@@ -1,20 +1,28 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
-public class Rotator : MonoBehaviour
+namespace RunnerGame
 {
-    public Vector3 speed;
-
-    private void Start()
+    /// <summary>
+    /// Spins the attached object (used by coins). Respects the game state so
+    /// it stops during the countdown, pause and game over.
+    /// </summary>
+    public class Rotator : MonoBehaviour
     {
-        transform.localRotation *= Quaternion.Euler(speed * Random.Range(0, 180));
-    }
+        public Vector3 speed;
 
-    private void Update()
-    {
-        if (!GameManager.instance.isRunning())
-            return;
-        transform.localRotation *= Quaternion.Euler(speed * Time.deltaTime);
+        private void Start()
+        {
+            transform.localRotation *= Quaternion.Euler(speed * Random.Range(0f, 180f));
+        }
+
+        private void Update()
+        {
+            if (!GameManager.IsGameRunning())
+            {
+                return;
+            }
+
+            transform.localRotation *= Quaternion.Euler(speed * Time.deltaTime);
+        }
     }
 }
